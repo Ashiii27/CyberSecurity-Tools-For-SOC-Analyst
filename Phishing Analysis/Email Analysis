@@ -1,10 +1,20 @@
-# Email Analysis Guide for Phishing Investigations
+<div align="center">
 
-A hands-on technical guide for SOC analysts and incident responders investigating suspicious emails.
+# 📧 Email Analysis Guide
+### Phishing Investigation for SOC Analysts & Incident Responders
+
+![Category](https://img.shields.io/badge/category-Blue%20Team-0d6efd?style=flat-square)
+![Type](https://img.shields.io/badge/type-SOC%20%7C%20IR-20c997?style=flat-square)
+![Difficulty](https://img.shields.io/badge/level-Intermediate-f0ad4e?style=flat-square)
+![Last Updated](https://img.shields.io/badge/updated-May%202026-6f42c1?style=flat-square)
+
+*A hands-on technical reference covering the full phishing analysis lifecycle — from header inspection to IOC reporting.*
+
+</div>
 
 ---
 
-## Table of Contents
+## 📑 Table of Contents
 
 1. [Introduction](#1-introduction)
 2. [Understanding Email Architecture](#2-understanding-email-architecture)
@@ -22,7 +32,7 @@ A hands-on technical guide for SOC analysts and incident responders investigatin
 
 ## 1. Introduction
 
-Email remains the #1 delivery mechanism for phishing, malware, and business email compromise (BEC). Effective email analysis requires understanding how email works under the hood — headers, authentication records, routing paths, and the techniques attackers use to evade detection.
+Email remains the **#1 delivery mechanism** for phishing, malware, and business email compromise (BEC). Effective analysis requires understanding how email works under the hood — headers, authentication records, routing paths, and attacker evasion techniques.
 
 This guide covers the full analysis lifecycle: from receiving a suspicious email report to documenting findings and taking remediation actions.
 
@@ -30,78 +40,76 @@ This guide covers the full analysis lifecycle: from receiving a suspicious email
 
 - Basic understanding of TCP/IP networking
 - Familiarity with DNS record types (MX, TXT, A, CNAME)
-- Access to at least one email analysis tool (free options listed in Section 9)
-- A safe, isolated environment for analyzing attachments and clicking links
+- Access to at least one email analysis tool (free options listed in [Section 9](#9-tools-reference))
+- A safe, isolated environment for analyzing attachments and links
 
 ### Golden Rules
 
-> ⚠️ **Never open suspicious attachments on your primary workstation.**
->
-> ⚠️ **Never click suspicious links without using a sandboxed browser or analysis tool.**
->
-> ⚠️ **Always preserve original email evidence (raw .eml or .msg format) before analysis.**
+> [!CAUTION]
+> **Never** open suspicious attachments on your primary workstation.
+> **Never** click suspicious links without using a sandboxed browser or analysis tool.
+> **Always** preserve the original email (raw `.eml` or `.msg`) before analysis.
 
 ---
 
 ## 2. Understanding Email Architecture
 
-Before analyzing emails, understanding how they travel from sender to recipient is essential.
-
 ### The Email Delivery Path
 
 ```
-[Sender's MUA] → [Sender's MTA] → [Intermediate MTAs] → [Recipient's MTA] → [Recipient's MDA] → [Recipient's MUA]
+[Sender MUA] → [Sender MTA] → [Intermediate MTAs] → [Recipient MTA] → [Recipient MDA] → [Recipient MUA]
 ```
 
-- **MUA** – Mail User Agent (e.g. Outlook, Gmail, Thunderbird)
-- **MTA** – Mail Transfer Agent (e.g. Postfix, Exchange, SendGrid)
-- **MDA** – Mail Delivery Agent (delivers to the user's mailbox)
+| Term | Full Name | Example |
+|------|-----------|---------|
+| **MUA** | Mail User Agent | Outlook, Gmail, Thunderbird |
+| **MTA** | Mail Transfer Agent | Postfix, Exchange, SendGrid |
+| **MDA** | Mail Delivery Agent | Delivers to the user's mailbox |
 
-Each MTA that handles the email **prepends** a `Received:` header to the message. This creates a chronological audit trail that analysts can trace.
+Each MTA **prepends** a `Received:` header — creating a chronological audit trail you can trace.
 
 ### Key Header Fields
 
 | Header | Description |
 |--------|-------------|
-| `From:` | Display name and email address shown to recipient (easily forged) |
-| `Reply-To:` | Where replies are sent — often different from `From:` in phishing |
-| `Return-Path:` | Where bounce messages go (also called the envelope sender) |
-| `Message-ID:` | Unique identifier assigned by the originating MTA |
-| `Date:` | Timestamp of when the message was sent (can be forged) |
-| `Received:` | Added by each MTA in the delivery chain (hardest to forge) |
-| `X-Originating-IP:` | Often added by webmail services to show the sender's IP |
-| `X-Mailer:` / `User-Agent:` | The email client or sending software used |
-| `MIME-Version:` | Indicates MIME encoding; multipart emails contain attachments/HTML |
-| `Content-Type:` | Describes the format of the email body and attachments |
+| `From:` | Display name and address shown to recipient — **easily forged** |
+| `Reply-To:` | Where replies are directed — often differs from `From:` in phishing |
+| `Return-Path:` | Envelope sender; where bounces go |
+| `Message-ID:` | Unique ID assigned by the originating MTA |
+| `Date:` | Timestamp when sent — can be forged |
+| `Received:` | Added by each MTA — **hardest to forge** |
+| `X-Originating-IP:` | Often added by webmail services — reveals actual sender IP |
+| `X-Mailer:` / `User-Agent:` | Email client or sending software |
+| `MIME-Version:` | Indicates MIME encoding; multipart = attachments/HTML |
+| `Content-Type:` | Describes the format of body and attachments |
 
-### Envelope vs. Header
+### Envelope vs. Header Sender
 
-This distinction is critical for understanding spoofing:
+> [!IMPORTANT]
+> This distinction is critical for understanding spoofing.
 
-- **Envelope sender** (`MAIL FROM` in SMTP, visible in `Return-Path:`) — used for delivery and bounce handling
+- **Envelope sender** (`MAIL FROM` → visible in `Return-Path:`) — used for delivery and bounce handling
 - **Header sender** (`From:` header) — displayed to the user in their email client
 
-Attackers frequently set a **legitimate envelope sender** (to pass SPF checks) while using a **spoofed `From:` header** that appears to be a trusted organization.
+Attackers set a **legitimate envelope sender** to pass SPF checks, while using a **spoofed `From:`** that appears to be a trusted organization.
 
 ---
 
 ## 3. Analyzing Email Headers
 
-### How to Extract Raw Headers
+### Extracting Raw Headers
 
-| Email Client | Method |
-|---|---|
-| Gmail | Open email → three-dot menu → "Show original" |
-| Outlook (Web) | Open email → three-dot menu → "View message source" |
-| Outlook (Desktop) | Open email → File → Properties → "Internet headers" box |
-| Apple Mail | View → Message → All Headers |
-| Thunderbird | View → Headers → All |
+| Client | Method |
+|--------|--------|
+| Gmail | Open email → ⋮ menu → **Show original** |
+| Outlook Web | Open email → ⋮ menu → **View message source** |
+| Outlook Desktop | File → Properties → **Internet headers** |
+| Apple Mail | View → Message → **All Headers** |
+| Thunderbird | View → Headers → **All** |
 
 ### Reading the Received Chain
 
-`Received:` headers are added **bottom-up** — the oldest (originating) hop is at the **bottom**, and the most recent (your mail server) is at the **top**.
-
-**Example:**
+`Received:` headers are added **bottom-up** — the oldest hop is at the **bottom**, the most recent is at the **top**.
 
 ```
 Received: from mail.example.com (mail.example.com [203.0.113.42])
@@ -114,47 +122,43 @@ Received: from webmail.attacker.net ([45.33.22.11])
 ```
 
 **Reading this:**
-
-1. The email originated from `45.33.22.11` (attacker's server) — bottom `Received:` header
-2. It was relayed through `mail.example.com` — this may be a compromised or third-party relay
-3. It was finally delivered by `mx.recipient.com` — top `Received:` header
+1. Email originated from `45.33.22.11` (attacker) — bottom `Received:` header
+2. Relayed through `mail.example.com` — possibly a compromised relay
+3. Delivered by `mx.recipient.com` — top `Received:` header
 
 ### Red Flags in the Received Chain
 
-- **Time discrepancies** — large gaps between hops can indicate manipulation or delayed sending
-- **Mismatched hostnames** — the PTR (reverse DNS) of an IP doesn't match the claimed hostname
-- **Unexpected geographic routing** — email claiming to be from a US bank routed through Eastern European or Asian MTAs
-- **Private IP addresses** — seeing `10.x.x.x` or `192.168.x.x` in an external hop is a sign of header forgery
-- **Single hop from unknown IP** — legitimate organizational email usually passes through known mail infrastructure
+- **Time discrepancies** — large gaps between hops (manipulation or delayed sending)
+- **Mismatched hostnames** — PTR of an IP doesn't match the claimed hostname
+- **Unexpected geographic routing** — US bank email routed through Eastern Europe
+- **Private IPs in external hops** — `10.x.x.x` or `192.168.x.x` = header forgery
+- **Single hop from unknown IP** — legitimate org email passes through known infrastructure
 
-### Checking the X-Originating-IP
+### Checking X-Originating-IP
 
-Some mail providers (Yahoo, older Gmail, Hotmail) include the **actual IP address of the device that sent the email**. This is extremely valuable for attribution.
+Some providers (Yahoo, older Gmail) include the **actual sending device's IP**:
 
 ```
 X-Originating-IP: 45.33.22.11
-X-Forwarded-To: victim@recipient.com
 ```
 
-Look up this IP in threat intelligence tools (VirusTotal, AbuseIPDB, Shodan) to determine:
-
-- Geolocation (does it match the claimed sender's location?)
-- ASN and hosting provider (is it a residential IP, a VPS, or a known bulletproof hoster?)
+Look up in [VirusTotal](https://virustotal.com), [AbuseIPDB](https://abuseipdb.com), or [Shodan](https://shodan.io) to check:
+- Geolocation (matches claimed sender?)
+- ASN (residential IP, VPS, or bulletproof host?)
 - Previous abuse reports
 
 ### Checking the Message-ID
 
-A legitimate `Message-ID:` is formatted as:
+A legitimate `Message-ID` looks like:
 
 ```
 Message-ID: <unique-string@sending-domain.com>
 ```
 
 **Suspicious signs:**
-
-- The domain in the `Message-ID` doesn't match the `From:` domain
-- Randomly generated strings that don't follow FQDN format
-- Missing `Message-ID` (some phishing tools omit it)
+- Domain in `Message-ID` doesn't match `From:` domain
+- Randomly generated strings not following FQDN format
+- Missing `Message-ID` entirely (many phishing tools omit it)
 
 ---
 
@@ -164,81 +168,60 @@ Modern email authentication uses three complementary standards. Failing any of t
 
 ### SPF (Sender Policy Framework)
 
-**What it does:** Specifies which IP addresses are authorized to send email on behalf of a domain.
+Specifies which IPs are authorized to send on behalf of a domain.
 
-**How to check:** Look for the `Authentication-Results:` or `Received-SPF:` header.
+**Check:** Look for `Authentication-Results:` or `Received-SPF:` headers.
 
 ```
 Received-SPF: Pass (domain of legitimate.com designates 203.0.113.1 as permitted sender)
 Received-SPF: Fail (domain of legit.com does not designate 45.33.22.11 as permitted sender)
 ```
 
-**SPF result meanings:**
-
 | Result | Meaning |
 |--------|---------|
-| `pass` | The sending IP is authorized |
-| `fail` | The sending IP is NOT authorized — strong phishing indicator |
-| `softfail` | The sending IP is probably not authorized (~all policy) |
-| `neutral` | The domain owner has no policy stance |
-| `none` | No SPF record found for the domain |
+| `pass` | Sending IP is authorized |
+| `fail` | Sending IP is **NOT** authorized — strong phishing indicator |
+| `softfail` | Probably not authorized (`~all` policy) |
+| `neutral` | Domain has no policy stance |
+| `none` | No SPF record found |
 | `temperror` | Temporary DNS error |
-| `permerror` | Permanent SPF record error (misconfiguration) |
+| `permerror` | Permanent SPF misconfiguration |
 
-**Manual SPF lookup:**
-
+**Manual lookup:**
 ```bash
 dig TXT example.com +short | grep spf
-# or
-nslookup -type=TXT example.com
 ```
 
 **Example SPF record:**
-
 ```
 v=spf1 include:_spf.google.com include:sendgrid.net ip4:203.0.113.0/24 -all
 ```
 
-The `-all` at the end means "reject all senders not listed above" (strict). `~all` is softfail (lenient). `+all` (dangerous) allows anyone.
+> [!NOTE]
+> `-all` = strict (reject all unlisted senders). `~all` = softfail. `+all` = dangerous (allows anyone).
 
 ---
 
 ### DKIM (DomainKeys Identified Mail)
 
-**What it does:** Digitally signs the email with a private key. The recipient verifies the signature using a public key published in DNS.
+Digitally signs the email with a private key; recipient verifies using a DNS-published public key.
 
-**How to check:** Look for `DKIM-Signature:` headers and the result in `Authentication-Results:`.
+**Check:** Look for `DKIM-Signature:` and `Authentication-Results:`.
 
 ```
 Authentication-Results: mx.recipient.com;
        dkim=pass header.i=@legitimate.com header.s=selector1 header.b=AbCdEf12
 ```
 
-```
-Authentication-Results: mx.recipient.com;
-       dkim=fail (signature did not verify) header.i=@spoofed.com
-```
-
-**DKIM result meanings:**
-
 | Result | Meaning |
 |--------|---------|
-| `pass` | Signature valid — email was not modified in transit |
-| `fail` | Signature invalid — email was tampered with, or key mismatch |
+| `pass` | Signature valid — email not modified in transit |
+| `fail` | Signature invalid — tampered with, or key mismatch |
 | `none` | No DKIM signature present |
-| `permerror` | Permanent error (misconfigured record) |
-| `temperror` | Temporary DNS lookup failure |
+| `permerror` | Misconfigured record |
+| `temperror` | Temporary DNS failure |
 
-**Manual DKIM key lookup:**
-
-The `DKIM-Signature:` header contains a `s=` (selector) and `d=` (domain) value:
-
-```
-DKIM-Signature: v=1; a=rsa-sha256; d=example.com; s=selector1; ...
-```
-
-Look up the public key:
-
+**Manual key lookup** (using `s=` selector and `d=` domain from the `DKIM-Signature:` header):
 ```bash
 dig TXT selector1._domainkey.example.com +short
 ```
@@ -247,45 +230,37 @@ dig TXT selector1._domainkey.example.com +short
 
 ### DMARC (Domain-based Message Authentication, Reporting & Conformance)
 
-**What it does:** Ties SPF and DKIM together and tells receiving mail servers what to do when a message fails authentication (nothing, quarantine, or reject).
+Ties SPF and DKIM together and specifies what to do on failure.
 
-**How to check:** Look in `Authentication-Results:` for `dmarc=`.
+**Check:** Look for `dmarc=` in `Authentication-Results:`.
 
 ```
 Authentication-Results: mx.recipient.com;
        dmarc=pass (p=REJECT) header.from=legitimate.com
 ```
 
-```
-Authentication-Results: mx.recipient.com;
-       dmarc=fail (p=NONE) header.from=spoofed.com
-```
-
-**Manual DMARC record lookup:**
-
+**Manual lookup:**
 ```bash
 dig TXT _dmarc.example.com +short
 ```
 
-**Example DMARC record:**
-
+**Example record:**
 ```
 v=DMARC1; p=reject; rua=mailto:dmarc-reports@example.com; pct=100
 ```
 
-**DMARC policy values:**
-
-| Policy (`p=`) | Action on failure |
+| Policy (`p=`) | Action on Failure |
 |---|---|
-| `none` | No action taken — monitoring only |
-| `quarantine` | Move to spam/junk folder |
-| `reject` | Reject the message outright |
+| `none` | No action — monitoring only |
+| `quarantine` | Move to spam/junk |
+| `reject` | Reject outright |
 
-> **Note:** A domain with `p=none` provides **zero protection** against spoofing — attackers frequently target organizations with weak DMARC policies.
+> [!WARNING]
+> A domain with `p=none` provides **zero protection** against spoofing. Attackers frequently target organizations with weak DMARC policies.
 
 ---
 
-### Authentication Summary Table
+### Authentication Quick-Reference
 
 | Scenario | SPF | DKIM | DMARC | Verdict |
 |----------|-----|------|-------|---------|
@@ -302,17 +277,16 @@ v=DMARC1; p=reject; rua=mailto:dmarc-reports@example.com; pct=100
 
 ### Display Name vs. Email Address
 
-Phishers rely on users reading only the display name and not the actual email address.
+Phishers rely on users reading only the display name, not the actual address.
 
 ```
 From: "PayPal Security" <no-reply@paypa1-secure.net>
 ```
 
 Check for:
-
-- **Lookalike domains** — `paypa1.com`, `paypal-secure.net`, `paypał.com` (homograph attack using Unicode)
-- **Subdomain abuse** — `paypal.attacker.com` (the actual domain is `attacker.com`)
-- **Free email providers** — `paypal-security@gmail.com` (a legitimate company wouldn't use Gmail)
+- **Lookalike domains** — `paypa1.com`, `paypal-secure.net`, `paypał.com` (Unicode homograph)
+- **Subdomain abuse** — `paypal.attacker.com` (actual domain is `attacker.com`)
+- **Free email providers** — `paypal-security@gmail.com`
 - **Hyphenated variants** — `pay-pal.com`, `paypal-support.com`
 
 ### Domain Age and Registration
@@ -320,249 +294,188 @@ Check for:
 Phishing domains are typically registered **days or weeks** before use.
 
 ```bash
-# WHOIS lookup
 whois suspicious-domain.com
-
-# Or use online tools:
-# https://whois.domaintools.com
-# https://lookup.icann.org
 ```
 
 **Red flags:**
-
-- Domain registered within the past 30 days
+- Registered within the past 30 days
 - Privacy-protected registrant (Domains by Proxy, WhoisGuard)
-- Registrar commonly used for abuse (Namecheap, GoDaddy are common but also popular for phishing domains)
-- Registrant country doesn't match the impersonated brand's country
-
-### Checking Domain Reputation
-
-```bash
-# MX record check
-dig MX suspicious-domain.com
-
-# Check if domain has no MX records (send-only phishing domains often have none)
-# Check if the MX points to a known bulk mailer or suspicious provider
-```
-
-Tools to check domain reputation:
-
-- **VirusTotal**: `https://www.virustotal.com/gui/domain/suspicious-domain.com`
-- **URLScan.io**: `https://urlscan.io/search/#domain:suspicious-domain.com`
-- **Cisco Talos**: `https://talosintelligence.com/reputation_center`
-- **MXToolbox Blacklist Check**: `https://mxtoolbox.com/blacklists.aspx`
+- Registrant country doesn't match the impersonated brand
 
 ### Reply-To Mismatch
-
-A `Reply-To:` address that differs from `From:` is a classic indicator of phishing — especially in BEC attacks.
 
 ```
 From: ceo@legitimate-company.com
 Reply-To: ceo-urgent@gmail.com
 ```
 
-This technique allows the attacker to receive replies even if the `From:` address is spoofed.
+A `Reply-To` differing from `From:` is a classic BEC indicator — the attacker receives replies even if the `From:` address is spoofed.
 
 ---
 
 ## 6. Analyzing URLs and Links
 
+> [!CAUTION]
+> **Never** click links directly. Always extract from raw source first.
+
 ### Extracting URLs Safely
 
-Never click links directly. Extract URLs from the raw email source:
-
-1. View raw email source (see Section 3)
+1. View raw email source (Section 3)
 2. Search for `http://` and `https://` patterns
-3. Pay special attention to HTML anchor tags: `<a href="...">`
-4. Decode any URL encoding: `%40` = `@`, `%2F` = `/`, `%3A` = `:`
+3. Check HTML anchor tags: `<a href="...">`
+4. Decode URL encoding: `%40` = `@`, `%2F` = `/`, `%3A` = `:`
 
 ### URL Deobfuscation Techniques
 
-Attackers use multiple techniques to hide malicious URLs:
+<details>
+<summary><strong>URL shorteners</strong></summary>
 
-**URL shorteners:**
 ```
 https://bit.ly/3xAbCdE → actually points to malicious site
 ```
-Expand using: https://checkshorturl.com or `curl -I https://bit.ly/3xAbCdE`
+Expand using: https://checkshorturl.com or:
+```bash
+curl -I https://bit.ly/3xAbCdE
+```
+</details>
 
-**Open redirects:**
+<details>
+<summary><strong>Open redirects</strong></summary>
+
 ```
 https://legitimate-site.com/redirect?url=https://evil.com
 ```
-The link appears to go to a trusted site, but redirects to the attacker's page.
+The link appears trusted but redirects to the attacker's page.
+</details>
 
-**Base64 encoding:**
+<details>
+<summary><strong>Base64 encoding</strong></summary>
+
 ```
 aHR0cHM6Ly9ldmlsLmNvbS9waGlzaA== → https://evil.com/phish
 ```
-Decode with: `echo "aHR0cHM..." | base64 -d`
-
-**Homograph/Unicode attacks:**
+Decode with:
+```bash
+echo "aHR0cHM6Ly9ldmlsLmNvbS9waGlzaA==" | base64 -d
 ```
-https://pаypal.com  (the 'а' is Cyrillic, not Latin)
-```
-Always check the actual Unicode characters in suspicious domains.
+</details>
 
-**IP address URLs:**
+<details>
+<summary><strong>Homograph / Unicode attacks</strong></summary>
+
+```
+https://pаypal.com   ← the 'а' is Cyrillic, not Latin
+```
+Always inspect the actual Unicode characters in suspicious domains.
+</details>
+
+<details>
+<summary><strong>Raw IP address URLs</strong></summary>
+
 ```
 http://45.33.22.11/login
 ```
-Legitimate organizations rarely use raw IP addresses in their email links.
+Legitimate organizations rarely use raw IPs in email links.
+</details>
 
-### Safe URL Analysis
+### Safe URL Analysis Tools
 
-Use these tools to analyze URLs without visiting them directly:
-
-```
-1. VirusTotal URL scan:
-   https://www.virustotal.com/gui/url/[URL]
-
-2. URLScan.io (takes a screenshot and records all network activity):
-   https://urlscan.io → paste URL → scan
-
-3. Any.run (interactive analysis):
-   https://any.run → new task → URL
-
-4. Google Safe Browsing check:
-   https://transparencyreport.google.com/safe-browsing/search
-```
-
-### What to Look for in URL Analysis
-
-- **Certificate details** — Does the SSL cert match the domain? Who issued it? Self-signed certs are suspicious.
-- **Page content** — Does it mimic a legitimate login page (credential harvester)?
-- **Redirects** — How many redirects occur? Where do they lead?
-- **Hosting provider** — Is the site hosted on a VPS, bulletproof host, or compromised legitimate site?
-- **Similar domains** — Is the domain trying to visually resemble a legitimate brand?
-- **PHP/HTML kit indicators** — Phishing kits often leave telltale signs in page source
+| Tool | Use |
+|------|-----|
+| [VirusTotal](https://virustotal.com) | Reputation check |
+| [URLScan.io](https://urlscan.io) | Screenshot + full network trace |
+| [Any.run](https://any.run) | Interactive sandbox |
+| [Google Safe Browsing](https://transparencyreport.google.com/safe-browsing/search) | Quick reputation check |
 
 ---
 
 ## 7. Analyzing Attachments
 
-### Safe Handling Procedures
+> [!CAUTION]
+> Always analyze in an **isolated VM or online sandbox**. Never open on your primary system.
 
-> ⚠️ Always analyze attachments in an **isolated environment** — a dedicated analysis VM, an online sandbox, or a containerized environment. Never open on your primary system.
+### Before Opening Anything
 
-**Before opening anything:**
-
-1. Note the file type (look at extension AND magic bytes — they may differ)
-2. Calculate file hashes for threat intel lookups
+1. Note the file type (check extension **and** magic bytes — they may differ)
+2. Calculate file hashes
 3. Submit to an online sandbox first
 
-**Calculate file hashes:**
-
 ```bash
-# Linux/macOS
+# Linux / macOS
 sha256sum suspicious_attachment.pdf
-md5sum suspicious_attachment.pdf
 
 # Windows PowerShell
 Get-FileHash suspicious_attachment.pdf -Algorithm SHA256
-Get-FileHash suspicious_attachment.pdf -Algorithm MD5
 ```
 
-Search hashes in:
-- VirusTotal: `https://www.virustotal.com/gui/file/[SHA256]`
-- Hybrid Analysis: `https://www.hybrid-analysis.com`
+Search hashes in [VirusTotal](https://virustotal.com) or [Hybrid Analysis](https://hybrid-analysis.com).
 
 ### Common Malicious Attachment Types
 
 | File Type | Common Threats | Analysis Tool |
 |-----------|---------------|---------------|
-| `.docx` / `.doc` | Malicious macros, template injection | OLETools (`olevba`) |
-| `.xlsm` / `.xls` | Macro-enabled spreadsheets, XLM macros | OLETools (`xlmdeobfuscator`) |
-| `.pdf` | Embedded JavaScript, launch actions, URIs | PDFiD, pdf-parser |
-| `.html` / `.htm` | Credential harvesting pages, smuggled payloads | Browser sandbox |
-| `.zip` / `.rar` | Packed malware, password-protected payloads | Extract and analyze contents |
-| `.iso` / `.img` | Used to bypass Mark-of-the-Web; contain LNK or EXE | Mount and analyze |
-| `.lnk` | LNK files that execute PowerShell or cmd.exe | lnkparse, LECmd |
+| `.docx` / `.doc` | Malicious macros, template injection | `olevba` |
+| `.xlsm` / `.xls` | Macro-enabled spreadsheets, XLM macros | `xlmdeobfuscator` |
+| `.pdf` | Embedded JS, launch actions | PDFiD, pdf-parser |
+| `.html` / `.htm` | Credential harvesters, HTML smuggling | Browser sandbox |
+| `.zip` / `.rar` | Packed malware, password-protected payloads | Extract and analyze |
+| `.iso` / `.img` | Bypasses Mark-of-the-Web; contains LNK or EXE | Mount and analyze |
+| `.lnk` | PowerShell/cmd execution | lnkparse, LECmd |
 | `.js` / `.vbs` | Dropper scripts | Any.run, manual review |
-| `.exe` / `.dll` | Direct malware delivery | Sandbox, Ghidra, x64dbg |
+| `.exe` / `.dll` | Direct malware | Sandbox, Ghidra, x64dbg |
 
 ### Analyzing Office Documents (OLETools)
 
 ```bash
-# Install OLETools
 pip install oletools
 
-# Check for suspicious indicators (high-level overview)
-mraptor suspicious.docx
-
-# Extract VBA macro code
-olevba suspicious.docx
-
-# Check for OLE objects and embedded content
-oleid suspicious.docx
-
-# Analyze all streams
-oledump.py suspicious.docx
+mraptor suspicious.docx        # High-level suspicious indicator check
+olevba suspicious.docx         # Extract VBA macro code
+oleid suspicious.docx          # Check for OLE objects
+oledump.py suspicious.docx     # Analyze all streams
 ```
 
-**Suspicious macro indicators:**
+**Dangerous VBA functions to look for:**
 
 ```vba
-' Dangerous functions to look for:
 Shell()           ' Executes system commands
 CreateObject()    ' Creates COM objects (often WScript.Shell)
-AutoOpen()        ' Runs automatically when document is opened
-Document_Open()   ' Runs automatically in Word
-Workbook_Open()   ' Runs automatically in Excel
-PowerShell        ' Often used to download and execute payloads
+AutoOpen()        ' Runs on document open (Word)
+Workbook_Open()   ' Runs on document open (Excel)
+Chr()             ' Character encoding — used to obfuscate strings
 Environ()         ' Accesses environment variables
-Chr()             ' Character encoding to obfuscate strings
 ```
 
 ### Analyzing PDFs
 
 ```bash
-# Install PDF tools
-pip install pdfminer.six
-# Download PDFiD and pdf-parser from https://blog.didierstevens.com
-
-# Quick overview of suspicious elements
+# Quick overview
 python pdfid.py suspicious.pdf
 
-# Look for JavaScript specifically
-python pdfid.py suspicious.pdf | grep -i javascript
-
-# Parse and extract JavaScript from a PDF
+# Extract JavaScript
 python pdf-parser.py -s JavaScript suspicious.pdf
 
-# Extract all streams
+# Analyze all streams
 python pdf-parser.py -a suspicious.pdf
 ```
 
-**Suspicious PDF indicators:**
+**Suspicious PDF flags:**
 
-```
-/JS           - Contains JavaScript
-/JavaScript   - Contains JavaScript action
-/AA           - Additional Actions (triggers)
-/OpenAction   - Runs automatically when opened
-/Launch       - Can launch applications
-/URI          - Contains URLs
-/EmbeddedFile - Contains embedded files
-/RichMedia    - Can contain Flash (legacy)
-```
+| Flag | Meaning |
+|------|---------|
+| `/JS` or `/JavaScript` | Contains JavaScript |
+| `/AA` | Additional Actions (auto-triggers) |
+| `/OpenAction` | Runs automatically on open |
+| `/Launch` | Can launch applications |
+| `/EmbeddedFile` | Contains embedded files |
+| `/URI` | Contains URLs |
 
 ### HTML Attachment Analysis
 
-HTML attachments are increasingly used for phishing because:
-
-- They can host complete phishing pages locally (bypassing URL filters)
-- They can use JavaScript to decode and render obfuscated content
-- They may use HTML smuggling to drop files on disk
+HTML attachments can host complete phishing pages locally — bypassing URL filters entirely.
 
 ```bash
-# View HTML source — look for:
-# 1. Embedded base64 data blobs
-# 2. Obfuscated JavaScript
-# 3. Form actions pointing to external URLs
-# 4. atob() calls (base64 decode in JavaScript)
-
-# Example of HTML smuggling pattern:
+# Look for these patterns in HTML source:
 grep -i "atob\|fromCharCode\|eval\|unescape" suspicious.html
 ```
 
@@ -570,18 +483,16 @@ grep -i "atob\|fromCharCode\|eval\|unescape" suspicious.html
 
 ## 8. Identifying Social Engineering Tactics
 
-Understanding the psychological techniques used in phishing emails helps with triage and user awareness.
-
 ### Common Psychological Triggers
 
-| Tactic | Example | What to look for |
-|--------|---------|-----------------|
-| **Urgency** | "Your account will be suspended in 24 hours" | Time pressure, countdown language |
-| **Fear** | "Unauthorized access detected on your account" | Alarm language, security alerts |
-| **Authority** | Impersonation of CEO, IT, IRS, police | Executive names, official logos |
-| **Scarcity** | "Only 2 spots remaining — act now" | Limited time/quantity claims |
+| Tactic | Example | Look For |
+|--------|---------|----------|
+| **Urgency** | "Your account will be suspended in 24 hours" | Time pressure, countdowns |
+| **Fear** | "Unauthorized access detected" | Alarm language, security alerts |
+| **Authority** | Impersonation of CEO, IT, IRS | Executive names, official logos |
+| **Scarcity** | "Only 2 spots remaining" | Limited time/quantity claims |
 | **Social proof** | "Your colleagues have already verified" | Peer pressure language |
-| **Curiosity** | "You have a pending document" | Vague but enticing subject lines |
+| **Curiosity** | "You have a pending document" | Vague, enticing subject lines |
 | **Reciprocity** | "You've been selected for a reward" | Gift cards, prizes, refunds |
 
 ### Subject Line Red Flags
@@ -591,87 +502,82 @@ Understanding the psychological techniques used in phishing emails helps with tr
 "Your account has been compromised"
 "Invoice #[number] attached"
 "Shared document: [believable filename]"
-"RE: [meeting or project name]" (reply-chain spoofing)
+"RE: [meeting or project name]"          ← reply-chain spoofing
 "[Your company name] IT Security Alert"
 "You have a new voicemail"
-"Payment confirmation"
 ```
-
-### Body Content Red Flags
-
-- Generic greetings ("Dear Customer", "Dear User") instead of the recipient's name
-- Grammar and spelling errors (though AI-generated phishing is now more polished)
-- Requests for credentials, personal information, or wire transfers
-- Mismatched or inconsistent branding (wrong logo, colors, fonts)
-- Footer discrepancies (wrong address, phone number, legal text)
-- Calls to action that bypass normal processes ("Don't use the normal system — reply directly to me")
 
 ### BEC (Business Email Compromise) Indicators
 
-BEC attacks specifically target organizations for financial fraud. Key indicators:
-
-- Email from a spoofed or look-alike executive email address
-- Request to change banking/payment details for a vendor
-- Urgent wire transfer request outside normal approval workflows
-- "Confidential — don't tell anyone else about this"
-- Sent from a free email provider claiming to be a company executive
-- Requests involving gift cards (common in lower-value BEC scams)
+- Spoofed or look-alike executive email address
+- Request to change vendor banking/payment details
+- Urgent wire transfer outside normal approval workflows
+- *"Confidential — don't tell anyone else about this"*
+- Company executive using a free email provider
+- Gift card requests (common in lower-value BEC scams)
 
 ---
 
 ## 9. Tools Reference
 
-### Free / Open Source Tools
+<details>
+<summary><strong>Free / Open Source Tools</strong></summary>
 
-| Tool | Purpose | URL |
-|------|---------|-----|
-| MXToolbox | Header analysis, DNS checks, blacklist check | https://mxtoolbox.com |
+| Tool | Purpose | Link |
+|------|---------|------|
+| MXToolbox | Header analysis, DNS checks, blacklist | https://mxtoolbox.com |
 | Google Messageheader | Header parsing and visualization | https://toolbox.googleapps.com/apps/messageheader/ |
-| URLScan.io | Safe URL scanning and screenshot | https://urlscan.io |
-| VirusTotal | File and URL reputation | https://www.virustotal.com |
+| URLScan.io | Safe URL scanning + screenshot | https://urlscan.io |
+| VirusTotal | File and URL reputation | https://virustotal.com |
 | Any.run | Interactive sandbox | https://any.run |
-| Hybrid Analysis | Behavioral analysis | https://www.hybrid-analysis.com |
-| PhishTank | Known phishing URL database | https://www.phishtank.com |
-| OpenPhish | Phishing feed | https://openphish.com |
-| AbuseIPDB | IP reputation | https://www.abuseipdb.com |
-| Shodan | Infrastructure intelligence | https://www.shodan.io |
+| Hybrid Analysis | Behavioral analysis | https://hybrid-analysis.com |
+| PhishTank | Known phishing URL database | https://phishtank.com |
+| AbuseIPDB | IP reputation | https://abuseipdb.com |
+| Shodan | Infrastructure intelligence | https://shodan.io |
 | AlienVault OTX | Threat intelligence | https://otx.alienvault.com |
 | DNSDumpster | DNS reconnaissance | https://dnsdumpster.com |
 | OLETools | Office document analysis | `pip install oletools` |
 | PDFiD / pdf-parser | PDF analysis | https://blog.didierstevens.com |
-| GoPhish | Phishing simulation | https://getgophish.com |
 
-### Commercial / Enterprise Tools
+</details>
 
-| Tool | Purpose | URL |
-|------|---------|-----|
-| PhishTool | End-to-end phishing triage | https://www.phishtool.com |
-| DomainTools | Domain/IP intelligence | https://www.domaintools.com |
+<details>
+<summary><strong>Commercial / Enterprise Tools</strong></summary>
+
+| Tool | Purpose | Link |
+|------|---------|------|
+| PhishTool | End-to-end phishing triage | https://phishtool.com |
+| DomainTools | Domain/IP intelligence | https://domaintools.com |
 | Cofense Triage | Phishing incident management | https://cofense.com |
-| Proofpoint | Email security + TAP | https://www.proofpoint.com |
-| Mimecast | Email security gateway | https://www.mimecast.com |
-| Joe Sandbox | Deep malware analysis | https://www.joesandbox.com |
-| MISP | Threat intel sharing | https://www.misp-project.org |
+| Proofpoint | Email security + TAP | https://proofpoint.com |
+| Joe Sandbox | Deep malware analysis | https://joesandbox.com |
+| MISP | Threat intel sharing | https://misp-project.org |
+
+</details>
 
 ### Command-Line Quick Reference
 
 ```bash
-# DNS lookups
-dig TXT _dmarc.example.com +short       # DMARC record
-dig TXT example.com +short | grep spf  # SPF record
-dig TXT selector1._domainkey.example.com # DKIM key
-dig MX example.com +short              # Mail exchangers
-dig A suspicious-domain.com            # A record (hosting IP)
+# DMARC record
+dig TXT _dmarc.example.com +short
+
+# SPF record
+dig TXT example.com +short | grep spf
+
+# DKIM public key
+dig TXT selector1._domainkey.example.com +short
+
+# MX records
+dig MX example.com +short
 
 # WHOIS
 whois suspicious-domain.com
-whois 45.33.22.11                      # Reverse IP lookup
+whois 45.33.22.11
 
 # File hashing
 sha256sum malicious.pdf
-md5sum malicious.pdf
 
-# Base64 decoding
+# Base64 decode
 echo "aHR0cHM6Ly9ldmlsLmNvbQ==" | base64 -d
 
 # URL decode
@@ -691,52 +597,56 @@ mraptor suspicious.docx
 
 ## 10. Analysis Workflow Checklists
 
-### Quick Triage Checklist (5 minutes)
+<details>
+<summary><strong>⚡ Quick Triage Checklist (5 minutes)</strong></summary>
 
 ```
 [ ] Extract raw email headers
-[ ] Check SPF, DKIM, DMARC results in Authentication-Results header
-[ ] Verify From: domain matches sending server in Received: headers
+[ ] Check SPF, DKIM, DMARC in Authentication-Results
+[ ] Verify From: domain matches Received: chain
 [ ] Check if Reply-To: differs from From:
-[ ] Note any suspicious subject line patterns
-[ ] Identify links — do they match the claimed sender's domain?
-[ ] Note any attachments and their file types
-[ ] Search sender domain age (WHOIS)
+[ ] Note suspicious subject line patterns
+[ ] Identify links — do they match the sender's domain?
+[ ] Note any attachments and file types
+[ ] Check sender domain age (WHOIS)
 [ ] Check sender IP in AbuseIPDB or VirusTotal
 ```
 
-### Deep Investigation Checklist (30–60 minutes)
+</details>
 
-**Headers:**
+<details>
+<summary><strong>🔍 Deep Investigation Checklist (30–60 minutes)</strong></summary>
+
+**Headers**
 ```
-[ ] Trace full Received: chain from bottom to top
-[ ] Identify originating IP and geolocate it
-[ ] Check originating IP reputation (VirusTotal, AbuseIPDB, Shodan)
+[ ] Trace full Received: chain bottom to top
+[ ] Identify originating IP and geolocate
+[ ] Check IP reputation (VirusTotal, AbuseIPDB, Shodan)
 [ ] Verify Message-ID domain matches From: domain
 [ ] Check for X-Originating-IP header
-[ ] Look for header anomalies (forged timestamps, private IPs in external hops)
+[ ] Look for forged timestamps or private IPs in external hops
 ```
 
-**Authentication:**
+**Authentication**
 ```
-[ ] Document SPF result and check SPF record manually (dig TXT)
-[ ] Document DKIM result and verify selector key exists (dig TXT selector._domainkey.domain)
-[ ] Document DMARC result and check policy (p=none/quarantine/reject)
-[ ] Determine if email alignment passed (RFC5322.From must align with SPF/DKIM domain for DMARC)
+[ ] Document SPF result; check record manually (dig TXT)
+[ ] Document DKIM result; verify selector key exists
+[ ] Document DMARC result and policy (p=none/quarantine/reject)
+[ ] Verify RFC5322.From aligns with SPF/DKIM domain for DMARC pass
 ```
 
-**Sender Investigation:**
+**Sender Investigation**
 ```
 [ ] Check domain registration date (WHOIS)
 [ ] Check domain reputation (VirusTotal, Cisco Talos)
 [ ] Verify sender IP is authorized by SPF record
-[ ] Check if domain is in OpenPhish / PhishTank
-[ ] Search for related infrastructure (PassiveTotal, RiskIQ)
+[ ] Check domain in OpenPhish / PhishTank
+[ ] Search related infrastructure (PassiveTotal, RiskIQ)
 ```
 
-**URL Analysis:**
+**URL Analysis**
 ```
-[ ] Extract all URLs from email body (raw source)
+[ ] Extract all URLs from raw email source
 [ ] Expand any URL shorteners
 [ ] Scan each URL in VirusTotal
 [ ] Screenshot each URL in URLScan.io
@@ -745,46 +655,54 @@ mraptor suspicious.docx
 [ ] Check for redirects and final landing page
 ```
 
-**Attachment Analysis:**
+**Attachment Analysis**
 ```
-[ ] Calculate SHA256 hash of each attachment
+[ ] Calculate SHA256 of each attachment
 [ ] Search hash in VirusTotal / Hybrid Analysis
 [ ] Identify true file type (magic bytes vs. extension)
 [ ] Submit to Any.run or Cuckoo for behavioral analysis
 [ ] If Office doc: run olevba to extract macros
 [ ] If PDF: run pdfid.py and pdf-parser.py
-[ ] Document any C2 communications or dropped files
+[ ] Document any C2 comms or dropped files
 ```
 
-**Impact Assessment:**
+**Impact Assessment**
 ```
 [ ] Identify how many users received the email
 [ ] Determine if any users clicked links
-[ ] Determine if any users downloaded/opened attachments
+[ ] Determine if any users opened attachments
 [ ] Check email gateway logs for similar campaigns
-[ ] Identify any credential submissions or data exfiltration
+[ ] Identify any credential submissions or data exfil
 ```
 
-### Response Actions Checklist
+</details>
+
+<details>
+<summary><strong>🛡️ Response Actions Checklist</strong></summary>
 
 ```
-[ ] Preserve original email evidence (.eml / .msg)
+[ ] Preserve original email (.eml / .msg)
 [ ] Block sender IP at email gateway
-[ ] Block sender domain at email gateway and DNS
+[ ] Block sender domain at gateway and DNS
 [ ] Block malicious URLs at web proxy / DNS filter
 [ ] Submit URLs to Google Safe Browsing / Microsoft SSCS
 [ ] Submit URLs to PhishTank / OpenPhish
 [ ] Add IOCs (domains, IPs, hashes, URLs) to SIEM
-[ ] Recall/delete email from all user mailboxes (if supported by platform)
-[ ] Notify affected users and instruct them to change passwords if they clicked
-[ ] Escalate to incident response if credential compromise is suspected
+[ ] Recall / delete email from all user mailboxes
+[ ] Notify affected users; instruct password reset if they clicked
+[ ] Escalate to IR if credential compromise is suspected
 [ ] Document findings in ticketing system
 [ ] Share IOCs with threat intel community (MISP, OTX)
 ```
 
+</details>
+
 ---
 
 ## 11. Sample Report Template
+
+<details>
+<summary><strong>📋 Click to expand full report template</strong></summary>
 
 ```
 ============================================================
@@ -831,9 +749,7 @@ URL 1:  [full URL]
   Reputation:         [VirusTotal result]
   Screenshot:         [URLScan.io link]
   Landing Page:       [description]
-  SSL Cert:           [issuer, valid, subject]
-  
-URL 2:  [repeat as needed]
+  SSL Cert:           [issuer, validity, subject]
 
 ------------------------------------------------------------
 5. ATTACHMENT ANALYSIS
@@ -842,8 +758,8 @@ File Name:            [filename.ext]
 File Type:            [true file type]
 MD5:                  [hash]
 SHA256:               [hash]
-VirusTotal:           [X/XX detections — link]
-Sandbox Result:       [summary of behavior]
+VirusTotal:           [X/XX detections]
+Sandbox Result:       [behavior summary]
 Macros/Scripts:       [yes/no — summary if yes]
 Dropped Files:        [list if any]
 C2 Contacted:         [list if any]
@@ -853,32 +769,31 @@ C2 Contacted:         [list if any]
 ------------------------------------------------------------
 Primary Tactic:       [urgency / fear / authority / etc.]
 Impersonated Brand:   [brand/organization name]
-Target of Attack:     [credentials / wire transfer / malware install]
-Notes:                [any other observations]
+Target of Attack:     [credentials / wire transfer / malware]
+Notes:                [other observations]
 
 ------------------------------------------------------------
 7. INDICATORS OF COMPROMISE (IOCs)
 ------------------------------------------------------------
 IPs:
-  - [45.33.22.11]
+  - 45.33.22.11
 
 Domains:
-  - [suspicious-domain.com]
-  - [phish-kit.net]
+  - suspicious-domain.com
 
 URLs:
-  - [https://suspicious-domain.com/login]
+  - https://suspicious-domain.com/login
 
 File Hashes (SHA256):
-  - [abc123...] (malicious.docx)
+  - abc123... (malicious.docx)
 
 Email Addresses:
-  - [attacker@gmail.com]
+  - attacker@gmail.com
 
 ------------------------------------------------------------
 8. VERDICT
 ------------------------------------------------------------
-Classification:   [PHISHING / MALWARE / BEC / SPAM / LEGITIMATE / UNKNOWN]
+Classification:   [PHISHING / MALWARE / BEC / SPAM / LEGITIMATE]
 Confidence:       [Low / Medium / High]
 Summary:          [2-3 sentence summary of findings]
 
@@ -900,21 +815,27 @@ Summary:          [2-3 sentence summary of findings]
 ============================================================
 ```
 
+</details>
+
 ---
 
 ## Additional Resources
 
-- [RFC 5321 – Simple Mail Transfer Protocol](https://tools.ietf.org/html/rfc5321)
-- [RFC 7208 – Sender Policy Framework (SPF)](https://tools.ietf.org/html/rfc7208)
-- [RFC 6376 – DomainKeys Identified Mail (DKIM)](https://tools.ietf.org/html/rfc6376)
-- [RFC 7489 – DMARC](https://tools.ietf.org/html/rfc7489)
-- [MITRE ATT&CK – Phishing Techniques](https://attack.mitre.org/techniques/T1566/)
-- [Google Messageheader Tool](https://toolbox.googleapps.com/apps/messageheader/)
-- [MXToolbox](https://mxtoolbox.com)
-- [Didier Stevens Blog (PDF/Office analysis)](https://blog.didierstevens.com)
-- [OLETools GitHub](https://github.com/decalage2/oletools)
+| Resource | Link |
+|----------|------|
+| RFC 5321 – SMTP | https://tools.ietf.org/html/rfc5321 |
+| RFC 7208 – SPF | https://tools.ietf.org/html/rfc7208 |
+| RFC 6376 – DKIM | https://tools.ietf.org/html/rfc6376 |
+| RFC 7489 – DMARC | https://tools.ietf.org/html/rfc7489 |
+| MITRE ATT&CK – Phishing (T1566) | https://attack.mitre.org/techniques/T1566/ |
+| Didier Stevens Blog (PDF/Office tools) | https://blog.didierstevens.com |
+| OLETools | https://github.com/decalage2/oletools |
+| Google Messageheader | https://toolbox.googleapps.com/apps/messageheader/ |
 
 ---
 
-*Guide version 1.0 — May 2026*
-*Contributions welcome — see the main repository README for guidelines.*
+<div align="center">
+
+*Version 1.0 — May 2026*
+
+</div>
