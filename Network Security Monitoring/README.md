@@ -84,20 +84,20 @@ NSM effectiveness is directly proportional to **visibility**. You cannot detect 
 Developed by David Bianco, the Pyramid of Pain describes how difficult it is for attackers to change different types of indicators when defenders act on them:
 
 ```
-         /\
-        /  \   TTPs (Tactics, Techniques, Procedures) ← Hardest for attacker to change
-       /----\
-      / Tools \  ← Hard
-     /----------\
-    / Network/Host \  ← Medium
-   /  Artifacts     \
-  /------------------\
- /   Domain Names     \  ← Easy for attacker to change
-/----------------------\
-/    IP Addresses       \  ← Trivial
-/------------------------\
-/    Hash Values          \  ← Trivial
-/--------------------------\
+             /\
+            /  \   TTPs (Tactics, Techniques, Procedures) ← Hardest for attacker to change
+           /----\
+          / Tools \  ← Hard
+         /---------\
+        / Network   \  ← Medium
+       /  Artifacts   \
+      /-----------------\
+     /   Domain Names     \  ← Easy for attacker to change
+    /----------------------\
+   /    IP Addresses        \  ← Trivial
+  /--------------------------\
+ /    Hash Values             \  ← Trivial
+/------------------------------\
 ```
 
 NSM should aim to detect at the **TTP level**, not just IOC (Indicator of Compromise) matching.
